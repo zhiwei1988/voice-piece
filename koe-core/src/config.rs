@@ -43,6 +43,8 @@ pub struct AsrSection {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct LlmSection {
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     #[serde(default)]
     pub base_url: String,
     #[serde(default)]
@@ -346,6 +348,7 @@ asr:
   enable_nonstream: true  # 二遍识别 (流式+非流式, 提升准确率)
 
 llm:
+  enabled: true        # set to false to skip LLM correction entirely
   # OpenAI-compatible endpoint for text correction
   base_url: ""         # e.g. "https://api.openai.com/v1"
   api_key: ""          # or use ${LLM_API_KEY}

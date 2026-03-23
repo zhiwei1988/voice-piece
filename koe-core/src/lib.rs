@@ -472,15 +472,19 @@ async fn run_session(
     }
 
     // --- LLM Correction ---
-    {
-        let mut s = session_arc.lock().unwrap();
-        if let Some(ref mut session) = *s {
-            let _ = session.transition(SessionState::Correcting);
-        }
-    }
-    invoke_state_changed("correcting");
+    let llm_enabled = llm_config.enabled
+        && !llm_config.base_url.is_empty()
+        && !llm_config.api_key.is_empty();
 
-    let final_text = if !llm_config.base_url.is_empty() && !llm_config.api_key.is_empty() {
+    let final_text = if llm_enabled {
+        {
+            let mut s = session_arc.lock().unwrap();
+            if let Some(ref mut session) = *s {
+                let _ = session.transition(SessionState::Correcting);
+            }
+        }
+        invoke_state_changed("correcting");
+
         let llm = OpenAiCompatibleProvider::new(
             llm_config.base_url,
             llm_config.api_key,
@@ -524,7 +528,11 @@ async fn run_session(
             }
         }
     } else {
-        log::info!("[{session_id}] LLM not configured, using raw ASR text");
+        if !llm_config.enabled {
+            log::info!("[{session_id}] LLM disabled, using raw ASR text");
+        } else {
+            log::info!("[{session_id}] LLM not configured, using raw ASR text");
+        }
         asr_text
     };
 
