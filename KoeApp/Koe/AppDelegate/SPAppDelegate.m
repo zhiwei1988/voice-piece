@@ -11,6 +11,7 @@
 #import "SPOverlayPanel.h"
 #import "SPHistoryManager.h"
 #import "SPSetupWizardWindowController.h"
+#import "SPUpdateManager.h"
 #import "koe_core.h"
 #import <sys/stat.h>
 #import <UserNotifications/UserNotifications.h>
@@ -49,6 +50,10 @@
 
     // Initialize floating overlay
     self.overlayPanel = [[SPOverlayPanel alloc] init];
+
+    // Initialize app update checker
+    self.updateManager = [[SPUpdateManager alloc] initWithBundle:[NSBundle mainBundle]];
+    [self.updateManager start];
 
     // Request notification permission
     [self.permissionManager requestNotificationPermission];
@@ -407,6 +412,10 @@
         self.setupWizard.delegate = self;
     }
     [self.setupWizard showWindow:nil];
+}
+
+- (void)statusBarDidSelectCheckForUpdates {
+    [self.updateManager checkForUpdatesFromUserAction];
 }
 
 #pragma mark - SPSetupWizardDelegate

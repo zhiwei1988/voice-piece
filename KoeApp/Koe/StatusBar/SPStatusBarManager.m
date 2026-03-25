@@ -154,6 +154,12 @@ static const CGFloat kIconSize = 18.0;
     openConfig.target = self;
     [menu addItem:openConfig];
 
+    NSMenuItem *checkForUpdates = [[NSMenuItem alloc] initWithTitle:@"Check for Updates..."
+                                                             action:@selector(checkForUpdates:)
+                                                      keyEquivalent:@""];
+    checkForUpdates.target = self;
+    [menu addItem:checkForUpdates];
+
     [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *loginItem = [[NSMenuItem alloc] initWithTitle:@"Launch at Login"
@@ -628,6 +634,12 @@ static const CGFloat kIconSize = 18.0;
 - (void)reloadConfig:(id)sender {
     if ([self.delegate respondsToSelector:@selector(statusBarDidSelectReloadConfig)]) {
         [self.delegate statusBarDidSelectReloadConfig];
+    }
+}
+
+- (void)checkForUpdates:(id)sender {
+    if ([self.delegate respondsToSelector:@selector(statusBarDidSelectCheckForUpdates)]) {
+        [self.delegate statusBarDidSelectCheckForUpdates];
     }
 }
 

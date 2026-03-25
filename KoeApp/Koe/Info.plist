@@ -30,5 +30,7 @@
 	<string>Koe needs microphone access to capture your speech for voice input.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SPUpdateFeedURL</key>
+	<string>$(APP_UPDATE_FEED_URL)</string>
 </dict>
 </plist>

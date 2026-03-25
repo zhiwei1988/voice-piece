@@ -8,6 +8,7 @@
 - (void)statusBarDidSelectReloadConfig;
 - (void)statusBarDidSelectQuit;
 - (void)statusBarDidSelectSetupWizard;
+- (void)statusBarDidSelectCheckForUpdates;
 - (void)statusBarMenuDidOpen;
 - (void)statusBarMenuDidClose;
 - (void)statusBarDidSelectAudioDeviceWithUID:(nullable NSString *)uid;

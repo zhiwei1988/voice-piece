@@ -1,0 +1,13 @@
+{
+  "version": "1.0.9",
+  "build": 10,
+  "published_at": "2026-03-25T11:35:24Z",
+  "minimum_system_version": "13.0",
+  "download_url": "https://github.com/missuo/koe/releases/download/v1.0.9/Koe-macOS-arm64.zip",
+  "release_notes_url": "https://github.com/missuo/koe/releases/tag/v1.0.9",
+  "notes": [
+    "Add built-in app update checks backed by a raw JSON feed in this repository.",
+    "Show the current version and build number in the menu bar status UI.",
+    "Improve microphone disconnect handling during recording."
+  ]
+}
