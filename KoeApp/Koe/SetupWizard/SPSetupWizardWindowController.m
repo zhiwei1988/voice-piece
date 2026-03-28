@@ -184,6 +184,7 @@ static NSString *yamlWrite(NSString *yaml, NSString *keyPath, NSString *value) {
 
     // Walk through parts[0..sectionCount-1] to find or create sections
     matchedDepth = 0;
+    NSInteger bestMatchedDepth = 0; // track deepest match (matchedDepth resets when leaving sections)
     for (NSInteger i = 0; i < (NSInteger)lines.count; i++) {
         NSString *line = lines[i];
         NSString *trimmed = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
@@ -206,6 +207,7 @@ static NSString *yamlWrite(NSString *yaml, NSString *keyPath, NSString *value) {
                 requiredIndent[matchedDepth] = lineIndent;
                 lastMatchedSectionLine[matchedDepth] = i;
                 matchedDepth++;
+                if (matchedDepth > bestMatchedDepth) bestMatchedDepth = matchedDepth;
 
                 if (matchedDepth == sectionCount) {
                     // Found all parent sections — find end of deepest section to insert
@@ -226,7 +228,8 @@ static NSString *yamlWrite(NSString *yaml, NSString *keyPath, NSString *value) {
 
     // If we partially matched (e.g. found "asr:" but not "qwen:" inside it),
     // insert at the end of the deepest matched section instead of end-of-file.
-    if (matchedDepth > 0 && matchedDepth < sectionCount) {
+    if (bestMatchedDepth > 0 && bestMatchedDepth < sectionCount) {
+        matchedDepth = bestMatchedDepth;
         NSInteger deepestLine = lastMatchedSectionLine[matchedDepth - 1];
         NSInteger deepestIndent = requiredIndent[matchedDepth - 1];
         insertIdx = deepestLine + 1;
