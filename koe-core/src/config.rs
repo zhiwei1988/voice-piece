@@ -260,6 +260,18 @@ impl HotkeySection {
     }
 
     fn resolve_key(key: &str) -> HotkeyParams {
+        #[cfg(target_os = "windows")]
+        {
+            Self::resolve_key_windows(key)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            Self::resolve_key_macos(key)
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn resolve_key_macos(key: &str) -> HotkeyParams {
         match key {
             "left_option" => HotkeyParams {
                 key_code: 58,       // kVK_Option
@@ -305,6 +317,59 @@ impl HotkeySection {
                 key_code: 63,       // kVK_Function (Fn)
                 alt_key_code: 179,  // Globe key on newer keyboards
                 modifier_flag: 0x00800000,  // NSEventModifierFlagFunction
+            },
+        }
+    }
+
+    /// Resolve key names to Windows Virtual Key codes.
+    /// modifier_flag is unused on Windows (low-level hook gives vkCode directly).
+    #[cfg(target_os = "windows")]
+    fn resolve_key_windows(key: &str) -> HotkeyParams {
+        match key {
+            "left_option" => HotkeyParams {
+                key_code: 0xA4,     // VK_LMENU (Left Alt)
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            "right_option" => HotkeyParams {
+                key_code: 0xA5,     // VK_RMENU (Right Alt)
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            "left_command" => HotkeyParams {
+                key_code: 0x5B,     // VK_LWIN
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            "right_command" => HotkeyParams {
+                key_code: 0x5C,     // VK_RWIN
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            "left_control" => HotkeyParams {
+                key_code: 0xA2,     // VK_LCONTROL
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            "right_control" => HotkeyParams {
+                key_code: 0xA3,     // VK_RCONTROL
+                alt_key_code: 0,
+                modifier_flag: 0,
+            },
+            // Raw keycode (Windows VK code as number)
+            _ if Self::parse_raw_keycode(key).is_some() => {
+                let code = Self::parse_raw_keycode(key).unwrap();
+                HotkeyParams {
+                    key_code: code,
+                    alt_key_code: 0,
+                    modifier_flag: 0,
+                }
+            },
+            // "fn" doesn't exist on Windows; default to Left Ctrl
+            _ => HotkeyParams {
+                key_code: 0xA2,     // VK_LCONTROL
+                alt_key_code: 0,
+                modifier_flag: 0,
             },
         }
     }
@@ -361,11 +426,17 @@ fn default_system_prompt_path() -> String {
     "system_prompt.txt".into()
 }
 fn default_trigger_key() -> String {
-    "fn".into()
+    #[cfg(target_os = "windows")]
+    { "left_control".into() }
+    #[cfg(not(target_os = "windows"))]
+    { "fn".into() }
 }
 
 fn default_cancel_key() -> String {
-    "left_option".into()
+    #[cfg(target_os = "windows")]
+    { "left_option".into() }
+    #[cfg(not(target_os = "windows"))]
+    { "left_option".into() }
 }
 
 fn default_cancel_key_for_trigger(trigger_key: &str) -> &'static str {
@@ -422,10 +493,22 @@ impl Default for HotkeySection {
 
 // ─── Config Directory ───────────────────────────────────────────────
 
-/// Returns ~/.koe/
+/// Returns the platform-specific config directory.
+/// macOS/Linux: ~/.koe/
+/// Windows: %LOCALAPPDATA%\koe\
 pub fn config_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    PathBuf::from(home).join(".koe")
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var("LOCALAPPDATA")
+            .unwrap_or_else(|_| std::env::var("USERPROFILE")
+                .unwrap_or_else(|_| "C:\\".into()));
+        PathBuf::from(base).join("koe")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        PathBuf::from(home).join(".koe")
+    }
 }
 
 /// Returns ~/.koe/config.yaml
@@ -714,6 +797,7 @@ pub fn ensure_defaults() -> Result<bool> {
     Ok(created)
 }
 
+#[cfg(not(target_os = "windows"))]
 const DEFAULT_CONFIG_YAML: &str = r#"# Koe - Voice Input Tool Configuration
 # ~/.koe/config.yaml
 
@@ -772,6 +856,66 @@ hotkey:
   trigger_key: "fn"
   # 取消键：fn | left_option | right_option | left_command | right_command | left_control | right_control
   # 也可以填 macOS keycode 数字（不能与触发键重复）
+  cancel_key: "left_option"
+"#;
+
+#[cfg(target_os = "windows")]
+const DEFAULT_CONFIG_YAML: &str = r#"# Koe - Voice Input Tool Configuration
+# %LOCALAPPDATA%\koe\config.yaml
+
+asr:
+  # ASR provider: "doubao" (default)
+  provider: "doubao"
+
+  # Doubao (豆包) Streaming ASR 2.0
+  doubao:
+    url: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async"
+    app_key: ""
+    access_key: ""
+    resource_id: "volc.seedasr.sauc.duration"
+    connect_timeout_ms: 3000
+    final_wait_timeout_ms: 5000
+    enable_ddc: true
+    enable_itn: true
+    enable_punc: true
+    enable_nonstream: true
+
+  # Qwen (Aliyun DashScope) Realtime ASR
+  qwen:
+    url: "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+    api_key: ""
+    model: "qwen3-asr-flash-realtime"
+    language: "zh"
+    connect_timeout_ms: 3000
+    final_wait_timeout_ms: 5000
+
+llm:
+  enabled: true
+  base_url: "https://api.openai.com/v1"
+  api_key: ""          # or use ${LLM_API_KEY}
+  model: "gpt-5.4-nano"
+  temperature: 0
+  top_p: 1
+  timeout_ms: 8000
+  max_output_tokens: 1024
+  max_token_parameter: "max_completion_tokens"
+  dictionary_max_candidates: 0
+  system_prompt_path: "system_prompt.txt"
+  user_prompt_path: "user_prompt.txt"
+
+feedback:
+  start_sound: false
+  stop_sound: false
+  error_sound: false
+
+dictionary:
+  path: "dictionary.txt"
+
+hotkey:
+  # Trigger key: left_control | right_control | left_option | right_option | left_command | right_command
+  # Or a Windows Virtual Key code number (e.g. 0x70 for F1, 0x71 for F2)
+  trigger_key: "left_control"
+  # Cancel key (must differ from trigger)
   cancel_key: "left_option"
 "#;
 

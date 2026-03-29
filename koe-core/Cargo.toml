@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "koe_core"
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "lib"]
 
 [dependencies]
 koe-asr = { path = "../koe-asr" }
@@ -18,5 +18,5 @@ log = "0.4"
 env_logger = "0.11"
 uuid = { version = "1", features = ["v4"] }
 
-[build-dependencies]
+[target.'cfg(target_os = "macos")'.build-dependencies]
 cbindgen = "0.27"
