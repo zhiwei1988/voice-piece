@@ -225,20 +225,11 @@ unsafe extern "system" fn overlay_wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    log::debug!("overlay msg=0x{msg:04X}");
     match msg {
-        WM_PAINT => {
-            // Intentionally empty — all painting done directly in paint_overlay().
-            // Any user32 GDI call (BeginPaint, ValidateRect, GetDC) on this
-            // WS_EX_LAYERED|WS_EX_TRANSPARENT window crashes in user32.dll
-            // on Windows 11 22H2.
-            LRESULT(0)
-        }
-        // Borderless layered window — skip non-client painting to avoid
-        // ACCESS_VIOLATION in DefWindowProcW on Windows 11.
+        // All painting done directly in paint_content() — skip WM_PAINT
+        // to avoid ACCESS_VIOLATION in user32.dll on Windows 11.
+        WM_PAINT | WM_NCPAINT | WM_ERASEBKGND => LRESULT(0),
         WM_NCHITTEST => LRESULT(-1), // HTTRANSPARENT — click-through
-        WM_NCPAINT => LRESULT(0),
-        WM_ERASEBKGND => LRESULT(1),
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
 }

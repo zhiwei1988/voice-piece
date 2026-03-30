@@ -33,23 +33,18 @@ fn main() {
 
     log::info!("Koe for Windows starting...");
 
-    log::info!("CoInitializeEx...");
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         SetProcessDPIAware();
     }
-    log::info!("CoInitializeEx done");
 
-    log::info!("sp_core_create...");
     let config_path = std::ffi::CString::new("").unwrap();
     let ret = koe_core::sp_core_create(config_path.as_ptr());
     if ret != 0 {
         log::error!("sp_core_create failed: {ret}");
         std::process::exit(1);
     }
-    log::info!("sp_core_create done");
 
-    log::info!("creating message window...");
     let class_name = w!("KoeMessageWindow");
     let hwnd = unsafe {
         let hmodule = GetModuleHandleW(None).unwrap();
@@ -75,47 +70,31 @@ fn main() {
         )
         .unwrap()
     };
-    log::info!("message window created: {:?}", hwnd);
 
-    log::info!("bridge::init...");
     bridge::init(hwnd);
-    log::info!("tray::init...");
     tray::init(hwnd);
-    log::info!("overlay::init...");
     overlay::init();
-    log::info!("hotkey::init...");
     hotkey::init(hwnd);
 
-    log::info!("Koe ready — entering message loop");
+    log::info!("Koe ready");
 
     unsafe {
         use windows::Win32::System::Diagnostics::Debug::*;
         SetUnhandledExceptionFilter(Some(crash_handler));
     }
 
-    // Watchdog thread: logs heartbeat every second, independent of message loop
-    std::thread::spawn(|| {
-        for i in 1u64.. {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            log::info!("heartbeat #{i}");
-        }
-    });
-
     unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
-            log::info!("loop msg=0x{:04X} hwnd={:?}", msg.message, msg.hwnd);
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
     }
 
-    log::info!("message loop exited, cleaning up...");
     hotkey::cleanup();
     tray::cleanup(hwnd);
     koe_core::sp_core_destroy();
     unsafe { CoUninitialize() };
-    log::info!("cleanup done, exiting");
 }
 
 #[cfg(target_os = "windows")]
@@ -127,8 +106,6 @@ unsafe extern "system" fn wnd_proc(
 ) -> windows::Win32::Foundation::LRESULT {
     use windows::Win32::Foundation::LRESULT;
     use windows::Win32::UI::WindowsAndMessaging::*;
-
-    log::debug!("wnd_proc msg=0x{msg:04X} wparam={:?} lparam={:?}", wparam, lparam);
 
     match msg {
         m if m >= bridge::WM_APP_SESSION_READY && m <= bridge::WM_APP_INTERIM_TEXT => {
@@ -152,7 +129,6 @@ unsafe extern "system" fn wnd_proc(
         }
 
         WM_DESTROY => {
-            log::info!("WM_DESTROY received, posting quit");
             PostQuitMessage(0);
             LRESULT(0)
         }

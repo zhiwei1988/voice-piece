@@ -82,12 +82,9 @@ unsafe extern "system" fn keyboard_hook_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    log::debug!("hook code={code} wparam=0x{:X} lparam=0x{:X}", wparam.0, lparam.0);
-
     if code >= 0 {
         let kbd = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
         let vk = kbd.vkCode as u16;
-        log::debug!("hook vk=0x{vk:X} flags=0x{:X}", kbd.flags.0);
         let trigger = TRIGGER_VK.load(Ordering::Relaxed);
         let cancel = CANCEL_VK.load(Ordering::Relaxed);
         let hwnd = load_hwnd();
@@ -120,7 +117,6 @@ unsafe extern "system" fn keyboard_hook_proc(
         }
     }
 
-    log::debug!("hook calling next");
     CallNextHookEx(None, code, wparam, lparam)
 }
 
