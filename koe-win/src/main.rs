@@ -93,10 +93,18 @@ fn main() {
         SetUnhandledExceptionFilter(Some(crash_handler));
     }
 
+    // Watchdog thread: logs heartbeat every second, independent of message loop
+    std::thread::spawn(|| {
+        for i in 1u64.. {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            log::info!("heartbeat #{i}");
+        }
+    });
+
     unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
-            log::debug!("loop msg=0x{:04X} hwnd={:?}", msg.message, msg.hwnd);
+            log::info!("loop msg=0x{:04X} hwnd={:?}", msg.message, msg.hwnd);
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
