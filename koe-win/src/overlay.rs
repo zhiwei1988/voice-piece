@@ -13,7 +13,9 @@ const CORNER_RADIUS: i32 = 18;
 const BG_COLOR: u32 = 0x00302020;
 const TEXT_COLOR: u32 = 0x00FFFFFF;
 
-static OVERLAY_HWND: Mutex<Option<HWND>> = Mutex::new(None);
+// HWND contains *mut c_void which is !Send, but we only access from the main thread.
+// Store as isize (pointer value) to satisfy Send requirement for Mutex.
+static OVERLAY_HWND: Mutex<Option<isize>> = Mutex::new(None);
 static DISPLAY_TEXT: Mutex<String> = Mutex::new(String::new());
 static IS_VISIBLE: Mutex<bool> = Mutex::new(false);
 
@@ -48,7 +50,7 @@ pub fn init() {
 
         SetLayeredWindowAttributes(hwnd, COLORREF(0), 220, LWA_ALPHA).unwrap();
 
-        *OVERLAY_HWND.lock().unwrap() = Some(hwnd);
+        *OVERLAY_HWND.lock().unwrap() = Some(hwnd.0 as isize);
     }
 }
 
@@ -85,7 +87,8 @@ pub fn update_interim_text(text: &str) {
 
 fn set_text(text: &str) {
     *DISPLAY_TEXT.lock().unwrap() = text.to_string();
-    if let Some(hwnd) = *OVERLAY_HWND.lock().unwrap() {
+    if let Some(val) = *OVERLAY_HWND.lock().unwrap() {
+        let hwnd = HWND(val as *mut _);
         unsafe {
             let _ = InvalidateRect(hwnd, None, BOOL(1));
             let _ = UpdateWindow(hwnd);
@@ -100,7 +103,8 @@ fn show() {
         return;
     }
     *visible = true;
-    if let Some(hwnd) = *OVERLAY_HWND.lock().unwrap() {
+    if let Some(val) = *OVERLAY_HWND.lock().unwrap() {
+        let hwnd = HWND(val as *mut _);
         unsafe {
             ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         }
@@ -113,7 +117,8 @@ fn hide() {
         return;
     }
     *visible = false;
-    if let Some(hwnd) = *OVERLAY_HWND.lock().unwrap() {
+    if let Some(val) = *OVERLAY_HWND.lock().unwrap() {
+        let hwnd = HWND(val as *mut _);
         unsafe {
             ShowWindow(hwnd, SW_HIDE);
         }

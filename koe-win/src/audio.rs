@@ -39,7 +39,8 @@ pub fn stop_capture() {
 
 fn capture_thread(stop: Arc<AtomicBool>) -> Result<()> {
     unsafe {
-        CoInitializeEx(None, COINIT_MULTITHREADED)?;
+        // CoInitializeEx returns HRESULT in windows-rs 0.58, not Result
+        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
     }
 
     let result = unsafe { capture_loop(&stop) };
@@ -115,14 +116,14 @@ unsafe fn capture_loop(stop: &AtomicBool) -> Result<()> {
     let mut timestamp: u64 = 0;
 
     while !stop.load(Ordering::SeqCst) {
+        // WAIT_TIMEOUT = WAIT_EVENT(258)
         let wait_result = WaitForSingleObject(event, 100);
-        if wait_result == WAIT_TIMEOUT {
+        if wait_result.0 == 258 {
             continue;
         }
 
         loop {
-            let mut packet_size = 0u32;
-            capture_client.GetNextPacketSize(&mut packet_size)?;
+            let packet_size = capture_client.GetNextPacketSize()?;
             if packet_size == 0 {
                 break;
             }
