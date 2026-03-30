@@ -36,7 +36,7 @@ pub fn init() {
         RegisterClassExW(&wc);
 
         let hwnd = CreateWindowExW(
-            WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED | WS_EX_TRANSPARENT,
+            WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_LAYERED,
             class_name,
             w!(""),
             WS_POPUP,
@@ -89,11 +89,61 @@ fn set_text(text: &str) {
     *DISPLAY_TEXT.lock().unwrap() = text.to_string();
     if let Some(val) = *OVERLAY_HWND.lock().unwrap() {
         let hwnd = HWND(val as *mut _);
-        unsafe {
-            let _ = InvalidateRect(hwnd, None, BOOL(1));
-            let _ = UpdateWindow(hwnd);
-        }
         reposition(hwnd, text);
+        paint_content(hwnd);
+    }
+}
+
+fn paint_content(hwnd: HWND) {
+    unsafe {
+        let hdc = GetDC(hwnd);
+        if hdc.is_invalid() {
+            return;
+        }
+
+        let mut rect = RECT::default();
+        let _ = GetClientRect(hwnd, &mut rect);
+
+        let brush = CreateSolidBrush(COLORREF(BG_COLOR));
+        let pen = CreatePen(PS_NULL, 0, COLORREF(0));
+        let old_brush = SelectObject(hdc, brush);
+        let old_pen = SelectObject(hdc, pen);
+        let _ = RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, CORNER_RADIUS, CORNER_RADIUS);
+        SelectObject(hdc, old_brush);
+        SelectObject(hdc, old_pen);
+        let _ = DeleteObject(brush);
+        let _ = DeleteObject(pen);
+
+        let text = DISPLAY_TEXT.lock().unwrap().clone();
+        let mut wide: Vec<u16> = text.encode_utf16().collect();
+
+        let font = CreateFontW(
+            16, 0, 0, 0,
+            FW_NORMAL.0 as i32,
+            0, 0, 0,
+            DEFAULT_CHARSET.0 as u32,
+            OUT_DEFAULT_PRECIS.0 as u32,
+            CLIP_DEFAULT_PRECIS.0 as u32,
+            CLEARTYPE_QUALITY.0 as u32,
+            DEFAULT_PITCH.0 as u32 | (FF_SWISS.0 as u32),
+            w!("Segoe UI"),
+        );
+        let old_font = SelectObject(hdc, font);
+        SetTextColor(hdc, COLORREF(TEXT_COLOR));
+        SetBkMode(hdc, TRANSPARENT);
+
+        let mut text_rect = RECT {
+            left: rect.left + PADDING_H,
+            top: rect.top + PADDING_V,
+            right: rect.right - PADDING_H,
+            bottom: rect.bottom - PADDING_V,
+        };
+        DrawTextW(hdc, &mut wide, &mut text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+        SelectObject(hdc, old_font);
+        let _ = DeleteObject(font);
+
+        ReleaseDC(hwnd, hdc);
     }
 }
 
@@ -178,63 +228,15 @@ unsafe extern "system" fn overlay_wnd_proc(
     log::debug!("overlay msg=0x{msg:04X}");
     match msg {
         WM_PAINT => {
-            // Avoid BeginPaint/EndPaint — it triggers WM_NCPAINT internally
-            // which causes ACCESS_VIOLATION in user32.dll on Windows 11
-            // for layered+transparent popup windows.
-            let _ = ValidateRect(hwnd, None);
-
-            let hdc = GetDC(hwnd);
-            if hdc.is_invalid() {
-                return LRESULT(0);
-            }
-
-            let mut rect = RECT::default();
-            let _ = GetClientRect(hwnd, &mut rect);
-
-            let brush = CreateSolidBrush(COLORREF(BG_COLOR));
-            let pen = CreatePen(PS_NULL, 0, COLORREF(0));
-            let old_brush = SelectObject(hdc, brush);
-            let old_pen = SelectObject(hdc, pen);
-            let _ = RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, CORNER_RADIUS, CORNER_RADIUS);
-            SelectObject(hdc, old_brush);
-            SelectObject(hdc, old_pen);
-            let _ = DeleteObject(brush);
-            let _ = DeleteObject(pen);
-
-            let text = DISPLAY_TEXT.lock().unwrap().clone();
-            let mut wide: Vec<u16> = text.encode_utf16().collect();
-
-            let font = CreateFontW(
-                16, 0, 0, 0,
-                FW_NORMAL.0 as i32,
-                0, 0, 0,
-                DEFAULT_CHARSET.0 as u32,
-                OUT_DEFAULT_PRECIS.0 as u32,
-                CLIP_DEFAULT_PRECIS.0 as u32,
-                CLEARTYPE_QUALITY.0 as u32,
-                DEFAULT_PITCH.0 as u32 | (FF_SWISS.0 as u32),
-                w!("Segoe UI"),
-            );
-            let old_font = SelectObject(hdc, font);
-            SetTextColor(hdc, COLORREF(TEXT_COLOR));
-            SetBkMode(hdc, TRANSPARENT);
-
-            let mut text_rect = RECT {
-                left: rect.left + PADDING_H,
-                top: rect.top + PADDING_V,
-                right: rect.right - PADDING_H,
-                bottom: rect.bottom - PADDING_V,
-            };
-            DrawTextW(hdc, &mut wide, &mut text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-
-            SelectObject(hdc, old_font);
-            let _ = DeleteObject(font);
-
-            ReleaseDC(hwnd, hdc);
+            // Intentionally empty — all painting done directly in paint_overlay().
+            // Any user32 GDI call (BeginPaint, ValidateRect, GetDC) on this
+            // WS_EX_LAYERED|WS_EX_TRANSPARENT window crashes in user32.dll
+            // on Windows 11 22H2.
             LRESULT(0)
         }
         // Borderless layered window — skip non-client painting to avoid
         // ACCESS_VIOLATION in DefWindowProcW on Windows 11.
+        WM_NCHITTEST => LRESULT(-1), // HTTRANSPARENT — click-through
         WM_NCPAINT => LRESULT(0),
         WM_ERASEBKGND => LRESULT(1),
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
