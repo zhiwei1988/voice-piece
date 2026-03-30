@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use uuid::Uuid;
 
 type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
@@ -234,9 +234,13 @@ impl AsrProvider for QwenAsrProvider {
 
         let (ws_stream, response) =
             timeout(Duration::from_millis(config.connect_timeout_ms), async {
-                connect_async(request)
-                    .await
-                    .map_err(|e| AsrError::Connection(e.to_string()))
+                crate::proxy::connect_ws(
+                    request,
+                    &config.proxy_url,
+                    &config.proxy_username,
+                    &config.proxy_password,
+                )
+                .await
             })
             .await
             .map_err(|_| AsrError::Connection("connection timed out".into()))??;

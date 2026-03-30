@@ -15,6 +15,18 @@ pub struct Config {
     pub dictionary: DictionarySection,
     #[serde(default)]
     pub hotkey: HotkeySection,
+    #[serde(default)]
+    pub proxy: ProxySection,
+}
+
+#[derive(Debug, Deserialize, Clone, Default)]
+pub struct ProxySection {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
 }
 
 // ─── ASR V2 Configuration ───────────────────────────────────────────

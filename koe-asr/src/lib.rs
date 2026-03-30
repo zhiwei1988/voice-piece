@@ -44,6 +44,7 @@ pub mod error;
 pub mod event;
 pub mod provider;
 pub mod qwen;
+pub mod proxy;
 pub mod transcript;
 
 pub use qwen::QwenAsrProvider;

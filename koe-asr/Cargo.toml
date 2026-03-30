@@ -6,7 +6,7 @@ description = "Streaming ASR (Automatic Speech Recognition) client for Volcengin
 license = "MIT"
 
 [dependencies]
-tokio = { version = "1", features = ["rt", "sync", "time"] }
+tokio = { version = "1", features = ["rt", "sync", "time", "io-util", "net"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 rustls = { version = "0.23", features = ["ring"], default-features = false }
 futures-util = "0.3"
@@ -17,6 +17,7 @@ log = "0.4"
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 async-trait = "0.1"
+url = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

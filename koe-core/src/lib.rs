@@ -94,7 +94,7 @@ pub extern "C" fn sp_core_create(config_path: *const c_char) -> i32 {
             return -1;
         }
     };
-    let llm_http_client = match build_http_client(cfg.llm.timeout_ms) {
+    let llm_http_client = match build_http_client(cfg.llm.timeout_ms, &cfg.proxy) {
         Ok(client) => client,
         Err(e) => {
             log::error!("failed to create LLM HTTP client: {e}");
@@ -164,7 +164,7 @@ pub extern "C" fn sp_core_reload_config() -> i32 {
     let mut global = CORE.lock().unwrap();
     if let Some(ref mut core) = *global {
         if llm_http_client_needs_reload(&core.config, &cfg) {
-            let llm_http_client = match build_http_client(cfg.llm.timeout_ms) {
+            let llm_http_client = match build_http_client(cfg.llm.timeout_ms, &cfg.proxy) {
                 Ok(client) => client,
                 Err(e) => {
                     log::error!("reload HTTP client failed: {e}");
@@ -215,7 +215,7 @@ pub extern "C" fn sp_core_session_begin(context: SPSessionContext) -> i32 {
         core.system_prompt = prompt::load_system_prompt(&config::resolve_system_prompt_path(&new_cfg));
         core.user_prompt_template = prompt::load_user_prompt_template(&config::resolve_user_prompt_path(&new_cfg));
         if llm_http_client_needs_reload(&core.config, &new_cfg) {
-            match build_http_client(new_cfg.llm.timeout_ms) {
+            match build_http_client(new_cfg.llm.timeout_ms, &new_cfg.proxy) {
                 Ok(client) => {
                     core.llm_http_client = client;
                     log::info!("LLM HTTP client reloaded at session start after timeout_ms change");
@@ -267,6 +267,9 @@ pub extern "C" fn sp_core_session_begin(context: SPSessionContext) -> i32 {
                 enable_nonstream: false,
                 hotwords: Vec::new(),
                 language: Some(qwen.language.clone()),
+                proxy_url: cfg.proxy.url.clone(),
+                proxy_username: cfg.proxy.username.clone(),
+                proxy_password: cfg.proxy.password.clone(),
             };
             (config, "qwen".to_string())
         }
@@ -286,6 +289,9 @@ pub extern "C" fn sp_core_session_begin(context: SPSessionContext) -> i32 {
                 enable_nonstream: doubao.enable_nonstream,
                 hotwords: core.dictionary.clone(),
                 language: Some("zh".to_string()),
+                proxy_url: cfg.proxy.url.clone(),
+                proxy_username: cfg.proxy.username.clone(),
+                proxy_password: cfg.proxy.password.clone(),
             };
             (config, "doubao".to_string())
         }

@@ -41,16 +41,28 @@ impl OpenAiCompatibleProvider {
     }
 }
 
-pub fn build_http_client(timeout_ms: u64) -> std::result::Result<Client, reqwest::Error> {
-    Client::builder()
+pub fn build_http_client(
+    timeout_ms: u64,
+    proxy: &crate::config::ProxySection,
+) -> std::result::Result<Client, reqwest::Error> {
+    let mut builder = Client::builder()
         .timeout(Duration::from_millis(timeout_ms))
         .pool_idle_timeout(Duration::from_secs(90))
         .pool_max_idle_per_host(2)
         .tcp_keepalive(Some(Duration::from_secs(30)))
         .http2_keep_alive_interval(Duration::from_secs(30))
         .http2_keep_alive_timeout(Duration::from_secs(30))
-        .http2_keep_alive_while_idle(true)
-        .build()
+        .http2_keep_alive_while_idle(true);
+
+    if !proxy.url.is_empty() {
+        let mut p = reqwest::Proxy::all(&proxy.url)?;
+        if !proxy.username.is_empty() {
+            p = p.basic_auth(&proxy.username, &proxy.password);
+        }
+        builder = builder.proxy(p);
+    }
+
+    builder.build()
 }
 
 impl LlmProvider for OpenAiCompatibleProvider {

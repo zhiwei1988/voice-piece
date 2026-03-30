@@ -27,6 +27,12 @@ pub struct AsrConfig {
     pub hotwords: Vec<String>,
     /// Language code for ASR (e.g. "zh", "en") - used by Qwen ASR
     pub language: Option<String>,
+    /// HTTP proxy URL for WebSocket connections (e.g. "http://proxy:8080")
+    pub proxy_url: String,
+    /// Proxy username (optional)
+    pub proxy_username: String,
+    /// Proxy password (optional)
+    pub proxy_password: String,
 }
 
 impl Default for AsrConfig {
@@ -45,6 +51,9 @@ impl Default for AsrConfig {
             enable_nonstream: true,
             hotwords: Vec::new(),
             language: Some("zh".to_string()),
+            proxy_url: String::new(),
+            proxy_username: String::new(),
+            proxy_password: String::new(),
         }
     }
 }
