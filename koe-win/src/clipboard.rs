@@ -4,29 +4,31 @@ use windows::Win32::System::Memory::*;
 
 use std::sync::Mutex;
 
+// CF_UNICODETEXT = 13
+const CF_UNICODETEXT_ID: u32 = 13;
+
 static BACKUP: Mutex<Option<Vec<u16>>> = Mutex::new(None);
 static BACKUP_SEQ: Mutex<u32> = Mutex::new(0);
 
-/// Backup current clipboard text content.
 pub fn backup() {
     unsafe {
-        if OpenClipboard(None).is_err() {
+        if OpenClipboard(HWND::default()).is_err() {
             log::warn!("clipboard: backup failed to open");
             return;
         }
 
-        let handle = GetClipboardData(CF_UNICODETEXT.0 as u32);
+        let handle = GetClipboardData(CF_UNICODETEXT_ID);
         let data = if let Ok(h) = handle {
-            if h.0 != std::ptr::null_mut() {
+            if !h.0.is_null() {
                 let ptr = GlobalLock(HGLOBAL(h.0)) as *const u16;
                 if !ptr.is_null() {
                     let mut len = 0;
                     while *ptr.add(len) != 0 {
                         len += 1;
                     }
-                    let slice = std::slice::from_raw_parts(ptr, len + 1); // include null
+                    let slice = std::slice::from_raw_parts(ptr, len + 1);
                     let vec = slice.to_vec();
-                    GlobalUnlock(HGLOBAL(h.0)).ok();
+                    let _ = GlobalUnlock(HGLOBAL(h.0));
                     Some(vec)
                 } else {
                     None
@@ -44,13 +46,12 @@ pub fn backup() {
     }
 }
 
-/// Write text to the clipboard.
 pub fn write_text(text: &str) {
     let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
     let byte_size = wide.len() * 2;
 
     unsafe {
-        if OpenClipboard(None).is_err() {
+        if OpenClipboard(HWND::default()).is_err() {
             log::warn!("clipboard: write failed to open");
             return;
         }
@@ -62,20 +63,17 @@ pub fn write_text(text: &str) {
             let ptr = GlobalLock(hmem) as *mut u16;
             if !ptr.is_null() {
                 std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
-                GlobalUnlock(hmem).ok();
-                let _ = SetClipboardData(CF_UNICODETEXT.0 as u32, HANDLE(hmem.0));
+                let _ = GlobalUnlock(hmem);
+                let _ = SetClipboardData(CF_UNICODETEXT_ID, HANDLE(hmem.0));
             }
         }
 
         let _ = CloseClipboard();
 
-        // Record sequence number for restore check
         *BACKUP_SEQ.lock().unwrap() = GetClipboardSequenceNumber();
     }
 }
 
-/// Restore the backed-up clipboard content.
-/// Only restores if no other app has modified the clipboard since our write.
 pub fn restore() {
     let backup_data = BACKUP.lock().unwrap().take();
     let Some(data) = backup_data else {
@@ -90,7 +88,7 @@ pub fn restore() {
             return;
         }
 
-        if OpenClipboard(None).is_err() {
+        if OpenClipboard(HWND::default()).is_err() {
             log::warn!("clipboard: restore failed to open");
             return;
         }
@@ -103,8 +101,8 @@ pub fn restore() {
             let ptr = GlobalLock(hmem) as *mut u16;
             if !ptr.is_null() {
                 std::ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
-                GlobalUnlock(hmem).ok();
-                let _ = SetClipboardData(CF_UNICODETEXT.0 as u32, HANDLE(hmem.0));
+                let _ = GlobalUnlock(hmem);
+                let _ = SetClipboardData(CF_UNICODETEXT_ID, HANDLE(hmem.0));
             }
         }
 

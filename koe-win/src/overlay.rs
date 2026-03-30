@@ -10,8 +10,8 @@ const PILL_HEIGHT: i32 = 36;
 const PADDING_H: i32 = 16;
 const PADDING_V: i32 = 8;
 const CORNER_RADIUS: i32 = 18;
-const BG_COLOR: u32 = 0x00302020; // dark brownish (BGR)
-const TEXT_COLOR: u32 = 0x00FFFFFF; // white (BGR)
+const BG_COLOR: u32 = 0x00302020;
+const TEXT_COLOR: u32 = 0x00FFFFFF;
 
 static OVERLAY_HWND: Mutex<Option<HWND>> = Mutex::new(None);
 static DISPLAY_TEXT: Mutex<String> = Mutex::new(String::new());
@@ -21,11 +21,12 @@ pub fn init() {
     let class_name = w!("KoeOverlay");
 
     unsafe {
-        let hinstance = GetModuleHandleW(None).unwrap();
+        let hmodule = GetModuleHandleW(None).unwrap();
+        let hinstance = HINSTANCE(hmodule.0);
         let wc = WNDCLASSEXW {
             cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
             lpfnWndProc: Some(overlay_wnd_proc),
-            hInstance: hinstance.into(),
+            hInstance: hinstance,
             lpszClassName: class_name,
             hbrBackground: CreateSolidBrush(COLORREF(BG_COLOR)),
             ..Default::default()
@@ -38,9 +39,9 @@ pub fn init() {
             w!(""),
             WS_POPUP,
             0, 0, 200, PILL_HEIGHT,
+            HWND::default(),
             None,
-            None,
-            Some(hinstance.into()),
+            hinstance,
             None,
         )
         .unwrap();
@@ -86,7 +87,7 @@ fn set_text(text: &str) {
     *DISPLAY_TEXT.lock().unwrap() = text.to_string();
     if let Some(hwnd) = *OVERLAY_HWND.lock().unwrap() {
         unsafe {
-            let _ = InvalidateRect(Some(hwnd), None, true);
+            let _ = InvalidateRect(hwnd, None, BOOL(1));
             let _ = UpdateWindow(hwnd);
         }
         reposition(hwnd, text);
@@ -121,8 +122,7 @@ fn hide() {
 
 fn reposition(hwnd: HWND, text: &str) {
     unsafe {
-        // Measure text width
-        let hdc = GetDC(Some(hwnd));
+        let hdc = GetDC(hwnd);
         let font = CreateFontW(
             16, 0, 0, 0,
             FW_NORMAL.0 as i32,
@@ -138,30 +138,29 @@ fn reposition(hwnd: HWND, text: &str) {
 
         let wide: Vec<u16> = text.encode_utf16().collect();
         let mut size = SIZE::default();
-        GetTextExtentPoint32W(hdc, &wide, &mut size).ok();
+        let _ = GetTextExtentPoint32W(hdc, &wide, &mut size);
 
         SelectObject(hdc, old_font);
-        DeleteObject(font).ok();
-        ReleaseDC(Some(hwnd), hdc);
+        let _ = DeleteObject(font);
+        ReleaseDC(hwnd, hdc);
 
         let text_width = size.cx.min(MAX_WIDTH - PADDING_H * 2);
         let window_width = text_width + PADDING_H * 2;
         let window_height = PILL_HEIGHT;
 
-        // Get work area (screen minus taskbar)
         let mut work_area = RECT::default();
-        SystemParametersInfoW(SPI_GETWORKAREA, 0, Some(&mut work_area as *mut _ as *mut _), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0)).ok();
+        let _ = SystemParametersInfoW(SPI_GETWORKAREA, 0, Some(&mut work_area as *mut _ as *mut _), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0));
 
         let screen_width = work_area.right - work_area.left;
         let x = work_area.left + (screen_width - window_width) / 2;
-        let y = work_area.bottom - window_height - 20; // 20px above taskbar
+        let y = work_area.bottom - window_height - 20;
 
-        SetWindowPos(
+        let _ = SetWindowPos(
             hwnd,
-            Some(HWND_TOPMOST),
+            HWND_TOPMOST,
             x, y, window_width, window_height,
             SWP_NOACTIVATE | SWP_SHOWWINDOW,
-        ).ok();
+        );
     }
 }
 
@@ -177,22 +176,20 @@ unsafe extern "system" fn overlay_wnd_proc(
             let hdc = BeginPaint(hwnd, &mut ps);
 
             let mut rect = RECT::default();
-            GetClientRect(hwnd, &mut rect).ok();
+            let _ = GetClientRect(hwnd, &mut rect);
 
-            // Dark rounded background
             let brush = CreateSolidBrush(COLORREF(BG_COLOR));
             let pen = CreatePen(PS_NULL, 0, COLORREF(0));
             let old_brush = SelectObject(hdc, brush);
             let old_pen = SelectObject(hdc, pen);
-            RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, CORNER_RADIUS, CORNER_RADIUS).ok();
+            let _ = RoundRect(hdc, rect.left, rect.top, rect.right, rect.bottom, CORNER_RADIUS, CORNER_RADIUS);
             SelectObject(hdc, old_brush);
             SelectObject(hdc, old_pen);
-            DeleteObject(brush).ok();
-            DeleteObject(pen).ok();
+            let _ = DeleteObject(brush);
+            let _ = DeleteObject(pen);
 
-            // Text
             let text = DISPLAY_TEXT.lock().unwrap().clone();
-            let wide: Vec<u16> = text.encode_utf16().collect();
+            let mut wide: Vec<u16> = text.encode_utf16().collect();
 
             let font = CreateFontW(
                 16, 0, 0, 0,
@@ -215,11 +212,10 @@ unsafe extern "system" fn overlay_wnd_proc(
                 right: rect.right - PADDING_H,
                 bottom: rect.bottom - PADDING_V,
             };
-            let mut wide_buf = wide.clone();
-            DrawTextW(hdc, &mut wide_buf, &mut text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            DrawTextW(hdc, &mut wide, &mut text_rect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
             SelectObject(hdc, old_font);
-            DeleteObject(font).ok();
+            let _ = DeleteObject(font);
 
             EndPaint(hwnd, &ps);
             LRESULT(0)

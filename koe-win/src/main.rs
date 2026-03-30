@@ -17,7 +17,6 @@ mod overlay;
 
 #[cfg(target_os = "windows")]
 fn main() {
-    use bridge::WM_APP_SESSION_READY;
     use windows::Win32::Foundation::*;
     use windows::Win32::System::Com::*;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -28,14 +27,10 @@ fn main() {
     log::info!("Koe for Windows starting...");
 
     unsafe {
-        // COM init for shell operations (tray, clipboard)
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-
-        // DPI awareness
         SetProcessDPIAware();
     }
 
-    // Initialize Rust core
     let config_path = std::ffi::CString::new("").unwrap();
     let ret = koe_core::sp_core_create(config_path.as_ptr());
     if ret != 0 {
@@ -43,14 +38,14 @@ fn main() {
         std::process::exit(1);
     }
 
-    // Create message-only window
     let class_name = w!("KoeMessageWindow");
     let hwnd = unsafe {
-        let hinstance = GetModuleHandleW(None).unwrap();
+        let hmodule = GetModuleHandleW(None).unwrap();
+        let hinstance = HINSTANCE(hmodule.0);
         let wc = WNDCLASSEXW {
             cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
             lpfnWndProc: Some(wnd_proc),
-            hInstance: hinstance.into(),
+            hInstance: hinstance,
             lpszClassName: class_name,
             ..Default::default()
         };
@@ -63,32 +58,27 @@ fn main() {
             0, 0, 0, 0,
             HWND_MESSAGE,
             None,
-            Some(hinstance.into()),
+            hinstance,
             None,
         )
         .unwrap()
     };
 
-    // Initialize bridge (stores HWND, registers callbacks)
     bridge::init(hwnd);
-
-    // Initialize components
     tray::init(hwnd);
     overlay::init();
     hotkey::init(hwnd);
 
     log::info!("Koe ready — hotkey monitor active");
 
-    // Message loop
     unsafe {
         let mut msg = MSG::default();
-        while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+        while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
     }
 
-    // Cleanup
     hotkey::cleanup();
     tray::cleanup(hwnd);
     koe_core::sp_core_destroy();
@@ -102,28 +92,25 @@ unsafe extern "system" fn wnd_proc(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Foundation::LRESULT;
     use windows::Win32::UI::WindowsAndMessaging::*;
 
     match msg {
-        // Bridge callbacks from Tokio threads
         m if m >= bridge::WM_APP_SESSION_READY && m <= bridge::WM_APP_INTERIM_TEXT => {
             bridge::handle_message(hwnd, msg, wparam, lparam);
             LRESULT(0)
         }
 
-        // Tray icon messages
         bridge::WM_APP_TRAY => {
             tray::handle_message(hwnd, msg, wparam, lparam);
             LRESULT(0)
         }
 
-        // Hotkey timer
         WM_TIMER => {
             hotkey::handle_timer(hwnd, wparam);
             LRESULT(0)
         }
 
-        // Hotkey messages
         m if m >= hotkey::WM_APP_HOTKEY_HOLD_START && m <= hotkey::WM_APP_HOTKEY_CANCEL => {
             hotkey::handle_message(hwnd, msg);
             LRESULT(0)

@@ -5,7 +5,6 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 
 use koe_core::ffi::{SPCallbacks, SPSessionContext, SPSessionMode};
 
-// Custom window messages for callback dispatch
 pub const WM_APP_SESSION_READY: u32 = WM_APP + 1;
 pub const WM_APP_SESSION_ERROR: u32 = WM_APP + 2;
 pub const WM_APP_SESSION_WARNING: u32 = WM_APP + 3;
@@ -14,7 +13,6 @@ pub const WM_APP_STATE_CHANGED: u32 = WM_APP + 5;
 pub const WM_APP_INTERIM_TEXT: u32 = WM_APP + 6;
 pub const WM_APP_TRAY: u32 = WM_APP + 100;
 
-// Global HWND for posting messages from callback threads
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
 
 fn get_hwnd() -> HWND {
@@ -28,9 +26,6 @@ fn post_string_message(msg: u32, text: &str) {
         let _ = PostMessageW(get_hwnd(), msg, WPARAM(0), LPARAM(ptr));
     }
 }
-
-// Callback functions registered with koe-core.
-// These run on Tokio worker threads — must not block, only PostMessage.
 
 extern "C" fn on_session_ready() {
     unsafe {
@@ -59,9 +54,7 @@ extern "C" fn on_final_text_ready(text: *const c_char) {
     post_string_message(WM_APP_FINAL_TEXT, &msg);
 }
 
-extern "C" fn on_log_event(_level: std::ffi::c_int, _message: *const c_char) {
-    // Logs are already handled by env_logger in the Rust core
-}
+extern "C" fn on_log_event(_level: std::ffi::c_int, _message: *const c_char) {}
 
 extern "C" fn on_state_changed(state: *const c_char) {
     let msg = unsafe { CStr::from_ptr(state) }
@@ -77,7 +70,6 @@ extern "C" fn on_interim_text(text: *const c_char) {
     post_string_message(WM_APP_INTERIM_TEXT, &msg);
 }
 
-/// Initialize the bridge: store HWND and register callbacks with koe-core.
 pub fn init(hwnd: HWND) {
     MAIN_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
 
@@ -93,7 +85,6 @@ pub fn init(hwnd: HWND) {
     koe_core::sp_core_register_callbacks(callbacks);
 }
 
-/// Begin a new voice input session.
 pub fn begin_session(mode: SPSessionMode) {
     let context = SPSessionContext {
         mode,
@@ -103,22 +94,18 @@ pub fn begin_session(mode: SPSessionMode) {
     koe_core::sp_core_session_begin(context);
 }
 
-/// Push an audio frame to the current session.
 pub fn push_audio(data: &[u8], timestamp: u64) {
     koe_core::sp_core_push_audio(data.as_ptr(), data.len() as u32, timestamp);
 }
 
-/// End the current session (user released hotkey).
 pub fn end_session() {
     koe_core::sp_core_session_end();
 }
 
-/// Cancel the current session.
 pub fn cancel_session() {
     koe_core::sp_core_session_cancel();
 }
 
-/// Recover a heap-allocated String from an LPARAM.
 fn recover_string(lparam: LPARAM) -> Option<String> {
     let ptr = lparam.0 as *mut String;
     if ptr.is_null() {
@@ -127,7 +114,6 @@ fn recover_string(lparam: LPARAM) -> Option<String> {
     Some(*unsafe { Box::from_raw(ptr) })
 }
 
-/// Handle a bridge message on the main thread.
 pub fn handle_message(hwnd: HWND, msg: u32, _wparam: WPARAM, lparam: LPARAM) {
     match msg {
         WM_APP_SESSION_READY => {
@@ -138,9 +124,8 @@ pub fn handle_message(hwnd: HWND, msg: u32, _wparam: WPARAM, lparam: LPARAM) {
                 log::error!("session error: {text}");
                 super::overlay::update_state("error");
                 super::tray::update_tooltip("Koe - Error");
-                // Brief error display, then back to idle
                 unsafe {
-                    SetTimer(Some(hwnd), 200, 2000, None);
+                    SetTimer(hwnd, 200, 2000, None);
                 }
             }
         }
@@ -154,12 +139,10 @@ pub fn handle_message(hwnd: HWND, msg: u32, _wparam: WPARAM, lparam: LPARAM) {
                 log::info!("final text: {} chars", text.len());
                 super::overlay::update_state("pasting");
                 super::tray::update_tooltip("Koe - Pasting");
-                // Clipboard backup → write → paste → restore
                 super::clipboard::backup();
                 super::clipboard::write_text(&text);
-                // Delay paste slightly to let clipboard settle
                 unsafe {
-                    SetTimer(Some(hwnd), 100, 50, None);
+                    SetTimer(hwnd, 100, 50, None);
                 }
             }
         }
