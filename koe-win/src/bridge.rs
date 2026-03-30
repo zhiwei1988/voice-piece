@@ -54,7 +54,16 @@ extern "C" fn on_final_text_ready(text: *const c_char) {
     post_string_message(WM_APP_FINAL_TEXT, &msg);
 }
 
-extern "C" fn on_log_event(_level: std::ffi::c_int, _message: *const c_char) {}
+extern "C" fn on_log_event(level: std::ffi::c_int, message: *const c_char) {
+    let msg = unsafe { CStr::from_ptr(message) }
+        .to_string_lossy();
+    match level {
+        0 => log::error!("[core] {msg}"),
+        1 => log::warn!("[core] {msg}"),
+        2 => log::info!("[core] {msg}"),
+        _ => log::debug!("[core] {msg}"),
+    }
+}
 
 extern "C" fn on_state_changed(state: *const c_char) {
     let msg = unsafe { CStr::from_ptr(state) }

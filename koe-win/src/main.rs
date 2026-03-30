@@ -14,6 +14,8 @@ mod clipboard;
 mod paste;
 #[cfg(target_os = "windows")]
 mod overlay;
+#[cfg(target_os = "windows")]
+mod logging;
 
 #[cfg(target_os = "windows")]
 fn main() {
@@ -23,21 +25,26 @@ fn main() {
     use windows::Win32::UI::WindowsAndMessaging::*;
     use windows::core::*;
 
-    env_logger::init();
+    logging::init();
     log::info!("Koe for Windows starting...");
 
+    log::info!("CoInitializeEx...");
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         SetProcessDPIAware();
     }
+    log::info!("CoInitializeEx done");
 
+    log::info!("sp_core_create...");
     let config_path = std::ffi::CString::new("").unwrap();
     let ret = koe_core::sp_core_create(config_path.as_ptr());
     if ret != 0 {
         log::error!("sp_core_create failed: {ret}");
         std::process::exit(1);
     }
+    log::info!("sp_core_create done");
 
+    log::info!("creating message window...");
     let class_name = w!("KoeMessageWindow");
     let hwnd = unsafe {
         let hmodule = GetModuleHandleW(None).unwrap();
@@ -63,13 +70,18 @@ fn main() {
         )
         .unwrap()
     };
+    log::info!("message window created: {:?}", hwnd);
 
+    log::info!("bridge::init...");
     bridge::init(hwnd);
+    log::info!("tray::init...");
     tray::init(hwnd);
+    log::info!("overlay::init...");
     overlay::init();
+    log::info!("hotkey::init...");
     hotkey::init(hwnd);
 
-    log::info!("Koe ready — hotkey monitor active");
+    log::info!("Koe ready — entering message loop");
 
     unsafe {
         let mut msg = MSG::default();
@@ -79,10 +91,12 @@ fn main() {
         }
     }
 
+    log::info!("message loop exited, cleaning up...");
     hotkey::cleanup();
     tray::cleanup(hwnd);
     koe_core::sp_core_destroy();
     unsafe { CoUninitialize() };
+    log::info!("cleanup done, exiting");
 }
 
 #[cfg(target_os = "windows")]
