@@ -226,6 +226,10 @@ unsafe extern "system" fn overlay_wnd_proc(
             EndPaint(hwnd, &ps);
             LRESULT(0)
         }
+        // Borderless layered window — skip non-client painting to avoid
+        // ACCESS_VIOLATION in DefWindowProcW on Windows 11.
+        WM_NCPAINT => LRESULT(0),
+        WM_ERASEBKGND => LRESULT(1),
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
 }
