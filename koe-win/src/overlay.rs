@@ -178,8 +178,15 @@ unsafe extern "system" fn overlay_wnd_proc(
     log::debug!("overlay msg=0x{msg:04X}");
     match msg {
         WM_PAINT => {
-            let mut ps = PAINTSTRUCT::default();
-            let hdc = BeginPaint(hwnd, &mut ps);
+            // Avoid BeginPaint/EndPaint — it triggers WM_NCPAINT internally
+            // which causes ACCESS_VIOLATION in user32.dll on Windows 11
+            // for layered+transparent popup windows.
+            let _ = ValidateRect(hwnd, None);
+
+            let hdc = GetDC(hwnd);
+            if hdc.is_invalid() {
+                return LRESULT(0);
+            }
 
             let mut rect = RECT::default();
             let _ = GetClientRect(hwnd, &mut rect);
@@ -223,7 +230,7 @@ unsafe extern "system" fn overlay_wnd_proc(
             SelectObject(hdc, old_font);
             let _ = DeleteObject(font);
 
-            EndPaint(hwnd, &ps);
+            ReleaseDC(hwnd, hdc);
             LRESULT(0)
         }
         // Borderless layered window — skip non-client painting to avoid
