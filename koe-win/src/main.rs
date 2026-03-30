@@ -26,6 +26,11 @@ fn main() {
     use windows::core::*;
 
     logging::init();
+
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("PANIC: {info}");
+    }));
+
     log::info!("Koe for Windows starting...");
 
     log::info!("CoInitializeEx...");
@@ -109,6 +114,8 @@ unsafe extern "system" fn wnd_proc(
     use windows::Win32::Foundation::LRESULT;
     use windows::Win32::UI::WindowsAndMessaging::*;
 
+    log::debug!("wnd_proc msg=0x{msg:04X} wparam={:?} lparam={:?}", wparam, lparam);
+
     match msg {
         m if m >= bridge::WM_APP_SESSION_READY && m <= bridge::WM_APP_INTERIM_TEXT => {
             bridge::handle_message(hwnd, msg, wparam, lparam);
@@ -131,6 +138,7 @@ unsafe extern "system" fn wnd_proc(
         }
 
         WM_DESTROY => {
+            log::info!("WM_DESTROY received, posting quit");
             PostQuitMessage(0);
             LRESULT(0)
         }
