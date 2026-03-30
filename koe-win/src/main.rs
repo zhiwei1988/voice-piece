@@ -155,7 +155,7 @@ unsafe extern "system" fn wnd_proc(
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn crash_handler(
-    info: *mut windows::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS,
+    info: *const windows::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS,
 ) -> i32 {
     let code = if !info.is_null() && !(*info).ExceptionRecord.is_null() {
         (*(*info).ExceptionRecord).ExceptionCode.0
