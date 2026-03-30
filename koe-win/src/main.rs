@@ -89,8 +89,14 @@ fn main() {
     log::info!("Koe ready — entering message loop");
 
     unsafe {
+        use windows::Win32::System::Diagnostics::Debug::*;
+        SetUnhandledExceptionFilter(Some(crash_handler));
+    }
+
+    unsafe {
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
+            log::debug!("loop msg=0x{:04X} hwnd={:?}", msg.message, msg.hwnd);
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -145,6 +151,26 @@ unsafe extern "system" fn wnd_proc(
 
         _ => DefWindowProcW(hwnd, msg, wparam, lparam),
     }
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn crash_handler(
+    info: *mut windows::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS,
+) -> i32 {
+    let code = if !info.is_null() && !(*info).ExceptionRecord.is_null() {
+        (*(*info).ExceptionRecord).ExceptionCode.0
+    } else {
+        0
+    };
+    let addr = if !info.is_null() && !(*info).ExceptionRecord.is_null() {
+        (*(*info).ExceptionRecord).ExceptionAddress as usize
+    } else {
+        0
+    };
+    log::error!("CRASH: exception code=0x{code:08X} addr=0x{addr:016X}");
+    log::logger().flush();
+    // EXCEPTION_EXECUTE_HANDLER = 1
+    1
 }
 
 #[cfg(not(target_os = "windows"))]

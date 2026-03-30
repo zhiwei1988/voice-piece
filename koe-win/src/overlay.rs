@@ -175,6 +175,7 @@ unsafe extern "system" fn overlay_wnd_proc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    log::debug!("overlay msg=0x{msg:04X}");
     match msg {
         WM_PAINT => {
             let mut ps = PAINTSTRUCT::default();
