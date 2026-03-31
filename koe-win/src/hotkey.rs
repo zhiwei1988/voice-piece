@@ -128,6 +128,7 @@ unsafe extern "system" fn keyboard_hook_proc(
 }
 
 pub fn handle_timer(hwnd: HWND, wparam: WPARAM) {
+    log::debug!("WM_TIMER id={}", wparam.0);
     match wparam.0 {
         HOLD_TIMER_ID => {
             unsafe { let _ = KillTimer(hwnd, HOLD_TIMER_ID); }
@@ -137,6 +138,7 @@ pub fn handle_timer(hwnd: HWND, wparam: WPARAM) {
             }
         }
         TRAILING_AUDIO_TIMER_ID => {
+            log::info!("trailing audio timer fired");
             unsafe { let _ = KillTimer(hwnd, TRAILING_AUDIO_TIMER_ID); }
             crate::audio::stop_capture();
             crate::bridge::end_session();
@@ -183,7 +185,8 @@ pub fn handle_message(hwnd: HWND, msg: u32) {
         }
         WM_APP_HOTKEY_TAP_END => {
             log::info!("tap end");
-            unsafe { SetTimer(hwnd, TRAILING_AUDIO_TIMER_ID, TRAILING_AUDIO_MS, None); }
+            let timer_result = unsafe { SetTimer(hwnd, TRAILING_AUDIO_TIMER_ID, TRAILING_AUDIO_MS, None) };
+            log::info!("trailing audio timer set: hwnd={:?}, result={}", hwnd, timer_result);
         }
         WM_APP_HOTKEY_CANCEL => {
             log::info!("cancel");
