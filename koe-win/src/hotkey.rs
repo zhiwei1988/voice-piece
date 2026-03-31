@@ -13,8 +13,6 @@ pub const WM_APP_HOTKEY_CANCEL: u32 = WM_APP + 54;
 
 const HOLD_TIMER_ID: usize = 300;
 const HOLD_THRESHOLD_MS: u32 = 500;
-const TRAILING_AUDIO_TIMER_ID: usize = 301;
-const TRAILING_AUDIO_MS: u32 = 300;
 
 static HOOK: AtomicIsize = AtomicIsize::new(0);
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
@@ -137,12 +135,6 @@ pub fn handle_timer(hwnd: HWND, wparam: WPARAM) {
                 handle_message(hwnd, WM_APP_HOTKEY_HOLD_START);
             }
         }
-        TRAILING_AUDIO_TIMER_ID => {
-            log::info!("trailing audio timer fired");
-            unsafe { let _ = KillTimer(hwnd, TRAILING_AUDIO_TIMER_ID); }
-            crate::audio::stop_capture();
-            crate::bridge::end_session();
-        }
         100 => {
             unsafe { let _ = KillTimer(hwnd, 100); }
             crate::paste::simulate_paste();
@@ -174,7 +166,8 @@ pub fn handle_message(hwnd: HWND, msg: u32) {
         }
         WM_APP_HOTKEY_HOLD_END => {
             log::info!("hold end");
-            unsafe { SetTimer(hwnd, TRAILING_AUDIO_TIMER_ID, TRAILING_AUDIO_MS, None); }
+            crate::audio::stop_capture();
+            crate::bridge::end_session();
         }
         WM_APP_HOTKEY_TAP_START => {
             log::info!("tap start");
@@ -185,8 +178,8 @@ pub fn handle_message(hwnd: HWND, msg: u32) {
         }
         WM_APP_HOTKEY_TAP_END => {
             log::info!("tap end");
-            let timer_result = unsafe { SetTimer(hwnd, TRAILING_AUDIO_TIMER_ID, TRAILING_AUDIO_MS, None) };
-            log::info!("trailing audio timer set: hwnd={:?}, result={}", hwnd, timer_result);
+            crate::audio::stop_capture();
+            crate::bridge::end_session();
         }
         WM_APP_HOTKEY_CANCEL => {
             log::info!("cancel");
