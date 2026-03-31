@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicIsize, AtomicU16, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU16, AtomicU32, Ordering};
 use windows::Win32::Foundation::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -20,6 +20,7 @@ static HOOK: AtomicIsize = AtomicIsize::new(0);
 static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
 static TRIGGER_VK: AtomicU16 = AtomicU16::new(0);
 static CANCEL_VK: AtomicU16 = AtomicU16::new(0);
+static TRIGGER_DOWN: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HotkeyState {
@@ -94,19 +95,25 @@ unsafe extern "system" fn keyboard_hook_proc(
 
         if vk == trigger {
             let state = get_state();
-            if is_key_down && state == HotkeyState::Idle {
-                set_state(HotkeyState::Pending);
-                SetTimer(hwnd, HOLD_TIMER_ID, HOLD_THRESHOLD_MS, None);
-            } else if is_key_up && state == HotkeyState::Pending {
-                let _ = KillTimer(hwnd, HOLD_TIMER_ID);
-                set_state(HotkeyState::RecordingToggle);
-                let _ = PostMessageW(hwnd, WM_APP_HOTKEY_TAP_START, WPARAM(0), LPARAM(0));
-            } else if is_key_up && state == HotkeyState::RecordingHold {
-                set_state(HotkeyState::Idle);
-                let _ = PostMessageW(hwnd, WM_APP_HOTKEY_HOLD_END, WPARAM(0), LPARAM(0));
-            } else if is_key_down && state == HotkeyState::RecordingToggle {
-                set_state(HotkeyState::Idle);
-                let _ = PostMessageW(hwnd, WM_APP_HOTKEY_TAP_END, WPARAM(0), LPARAM(0));
+            if is_key_down {
+                let was_down = TRIGGER_DOWN.swap(true, Ordering::SeqCst);
+                if !was_down && state == HotkeyState::Idle {
+                    set_state(HotkeyState::Pending);
+                    SetTimer(hwnd, HOLD_TIMER_ID, HOLD_THRESHOLD_MS, None);
+                } else if state == HotkeyState::RecordingToggle {
+                    set_state(HotkeyState::Idle);
+                    let _ = PostMessageW(hwnd, WM_APP_HOTKEY_TAP_END, WPARAM(0), LPARAM(0));
+                }
+            } else if is_key_up {
+                TRIGGER_DOWN.store(false, Ordering::SeqCst);
+                if state == HotkeyState::Pending {
+                    let _ = KillTimer(hwnd, HOLD_TIMER_ID);
+                    set_state(HotkeyState::RecordingToggle);
+                    let _ = PostMessageW(hwnd, WM_APP_HOTKEY_TAP_START, WPARAM(0), LPARAM(0));
+                } else if state == HotkeyState::RecordingHold {
+                    set_state(HotkeyState::Idle);
+                    let _ = PostMessageW(hwnd, WM_APP_HOTKEY_HOLD_END, WPARAM(0), LPARAM(0));
+                }
             }
         } else if vk == cancel && is_key_down {
             let state = get_state();
