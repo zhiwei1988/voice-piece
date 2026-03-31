@@ -76,6 +76,8 @@ unsafe fn capture_loop(stop: &AtomicBool) -> Result<()> {
         cbSize: 0,
     };
 
+    let flags = AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+
     let needs_resample = if audio_client
         .IsFormatSupported(
             AUDCLNT_SHAREMODE_SHARED,
@@ -86,7 +88,7 @@ unsafe fn capture_loop(stop: &AtomicBool) -> Result<()> {
     {
         audio_client.Initialize(
             AUDCLNT_SHAREMODE_SHARED,
-            0,
+            flags,
             10_000_000,
             0,
             &desired_format,
@@ -96,7 +98,7 @@ unsafe fn capture_loop(stop: &AtomicBool) -> Result<()> {
     } else {
         audio_client.Initialize(
             AUDCLNT_SHAREMODE_SHARED,
-            0,
+            flags,
             10_000_000,
             0,
             mix_format_ptr,
