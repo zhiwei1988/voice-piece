@@ -1,66 +1,32 @@
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 
+fn key_event(vk: VIRTUAL_KEY, scan: u16, flags: KEYBD_EVENT_FLAGS) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: scan,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
 /// Simulate Ctrl+V paste by sending keyboard input events.
 pub fn simulate_paste() {
+    // Scan codes: Ctrl=0x1D, V=0x2F
     let inputs = [
-        // Ctrl down
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_CONTROL,
-                    wScan: 0,
-                    dwFlags: KEYBD_EVENT_FLAGS(0),
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
-        // V down
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_V,
-                    wScan: 0,
-                    dwFlags: KEYBD_EVENT_FLAGS(0),
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
-        // V up
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_V,
-                    wScan: 0,
-                    dwFlags: KEYEVENTF_KEYUP,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
-        // Ctrl up
-        INPUT {
-            r#type: INPUT_KEYBOARD,
-            Anonymous: INPUT_0 {
-                ki: KEYBDINPUT {
-                    wVk: VK_CONTROL,
-                    wScan: 0,
-                    dwFlags: KEYEVENTF_KEYUP,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        },
+        key_event(VK_CONTROL, 0x1D, KEYBD_EVENT_FLAGS(0)),
+        key_event(VK_V, 0x2F, KEYBD_EVENT_FLAGS(0)),
+        key_event(VK_V, 0x2F, KEYEVENTF_KEYUP),
+        key_event(VK_CONTROL, 0x1D, KEYEVENTF_KEYUP),
     ];
 
     unsafe {
         let sent = SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
-        if sent != 4 {
-            log::warn!("paste: SendInput returned {sent}, expected 4");
-        }
+        log::info!("paste: SendInput sent {sent}/4 events");
     }
 }
