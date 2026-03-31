@@ -5,7 +5,7 @@ edition = "2021"
 description = "Koe voice input tool - Windows shell"
 
 [[bin]]
-name = "koe"
+name = "voice-piece"
 path = "src/main.rs"
 
 [dependencies]

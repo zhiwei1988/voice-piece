@@ -53,5 +53,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: koe-windows-x86_64
-          path: target/release/koe.exe
+          name: voice-piece-windows-x86_64
+          path: target/release/voice-piece.exe
