@@ -12,7 +12,7 @@ pub const WM_APP_HOTKEY_TAP_END: u32 = WM_APP + 53;
 pub const WM_APP_HOTKEY_CANCEL: u32 = WM_APP + 54;
 
 const HOLD_TIMER_ID: usize = 300;
-const HOLD_THRESHOLD_MS: u32 = 180;
+const HOLD_THRESHOLD_MS: u32 = 500;
 const TRAILING_AUDIO_TIMER_ID: usize = 301;
 const TRAILING_AUDIO_MS: u32 = 300;
 
